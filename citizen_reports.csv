@@ -1,0 +1,3 @@
+report_id,bin_id,area,complaint_type,geolocation,status,reported_at
+1,1,Downtown,overflow,"40.7128,-74.0060",open,2025-05-27 05:37:19
+2,3,Downtown,smell,"40.7130,-74.0055",in_progress,2025-05-27 05:37:19

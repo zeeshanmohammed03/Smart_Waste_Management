@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Waste Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center mb-6">Smart Waste Management Dashboard</h1>
+
+        <!-- Add Bin Form -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+    <h2 class="text-xl font-semibold mb-4">Fill Level Trend (Bin 1)</h2>
+    <canvas id="fillLevelChart"></canvas>
+</div>
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Add New Bin</h2>
+            <form id="add-bin-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium">Location</label>
+                    <input type="text" id="location" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Area</label>
+                    <input type="text" id="area" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Type</label>
+                    <select id="type" class="w-full p-2 border rounded" required>
+                        <option value="recyclable">Recyclable</option>
+                        <option value="organic">Organic</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Capacity (liters)</label>
+                    <input type="number" id="capacity" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Fill Level (%)</label>
+                    <input type="number" id="fill_level" class="w-full p-2 border rounded" min="0" max="100" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Temperature (°C)</label>
+                    <input type="number" id="temperature" class="w-full p-2 border rounded" step="0.1" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Last Emptied</label>
+                    <input type="datetime-local" id="last_emptied" class="w-full p-2 border rounded" required>
+                </div>
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add Bin</button>
+            </form>
+        </div>
+
+        <!-- Complaints Visualization -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Complaints by Area</h2>
+            <canvas id="complaintsChart"></canvas>
+        </div>
+
+        <!-- Critical Bins -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Critical Bins (>90% Fill, Not Emptied in 2 Days)</h2>
+            <table class="w-full table-auto">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Bin ID</th>
+                        <th class="px-4 py-2">Location</th>
+                        <th class="px-4 py-2">Area</th>
+                        <th class="px-4 py-2">Fill Level</th>
+                        <th class="px-4 py-2">Last Emptied</th>
+                    </tr>
+                </thead>
+                <tbody id="critical-bins-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Complaints by Area -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Complaints by Area</h2>
+            <table class="w-full table-auto">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Area</th>
+                        <th class="px-4 py-2">Complaint Count</th>
+                    </tr>
+                </thead>
+                <tbody id="complaints-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Driver Performance -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Driver Performance</h2>
+            <table class="w-full table-auto">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Driver</th>
+                        <th class="px-4 py-2">Route</th>
+                        <th class="px-4 py-2">Fuel Usage (L)</th>
+                        <th class="px-4 py-2">Distance (km)</th>
+                        <th class="px-4 py-2">Efficiency (km/L)</th>
+                    </tr>
+                </thead>
+                <tbody id="drivers-table"></tbody>
+            </table>
+        </div>
+
+        <!-- Area Cleanliness -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Area Cleanliness Ranking</h2>
+            <table class="w-full table-auto">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Area</th>
+                        <th class="px-4 py-2">Recycling Rate (%)</th>
+                        <th class="px-4 py-2">Emission Level (kg)</th>
+                        <th class="px-4 py-2">Complaint Count</th>
+                        <th class="px-4 py-2">Cleanliness Score</th>
+                    </tr>
+                </thead>
+                <tbody id="cleanliness-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+    async function fetchCriticalBins() {
+        const response = await fetch('/api/queries/critical_bins');
+        const bins = await response.json();
+        const tbody = document.getElementById('critical-bins-table');
+        tbody.innerHTML = '';
+        bins.forEach(bin => {
+            tbody.innerHTML += `
+                <tr ${bin.temperature > 35 ? 'class="bg-red-200"' : ''}>
+                    <td class="border px-4 py-2">${bin.bin_id}</td>
+                    <td class="border px-4 py-2">${bin.location}</td>
+                    <td class="border px-4 py-2">${bin.area}</td>
+                    <td class="border px-4 py-2 text-red-500">${bin.fill_level}%</td>
+                    <td class="border px-4 py-2">${bin.last_emptied}</td>
+                </tr>
+            `;
+            if (bin.temperature > 35) {
+                alert(`Warning: Bin ${bin.bin_id} at ${bin.location} has high temperature (${bin.temperature}°C)!`);
+            }
+        });
+    }
+
+    let complaintsChart = null;
+
+    async function fetchComplaints() {
+        const response = await fetch('/api/queries/complaints_by_area');
+        const areas = await response.json();
+        const tbody = document.getElementById('complaints-table');
+        tbody.innerHTML = '';
+        areas.forEach(area => {
+            tbody.innerHTML += `
+                <tr>
+                    <td class="border px-4 py-2">${area.area}</td>
+                    <td class="border px-4 py-2">${area.complaint_count}</td>
+                </tr>
+            `;
+        });
+        updateComplaintsChart(areas);
+    }
+
+    async function updateComplaintsChart(areas) {
+        const ctx = document.getElementById('complaintsChart').getContext('2d');
+        if (complaintsChart) {
+            complaintsChart.destroy();
+        }
+        complaintsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: areas.map(a => a.area),
+                datasets: [{
+                    label: 'Complaints by Area',
+                    data: areas.map(a => a.complaint_count),
+                    backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#F44336'],
+                    borderColor: ['#388E3C', '#1976D2', '#F57C00', '#D32F2F'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Number of Complaints' } },
+                    x: { title: { display: true, text: 'Area' } }
+                }
+            }
+        });
+    }
+
+    async function fetchDrivers() {
+        const response = await fetch('/api/queries/driver_performance');
+        const drivers = await response.json();
+        const tbody = document.getElementById('drivers-table');
+        tbody.innerHTML = '';
+        drivers.forEach(driver => {
+            tbody.innerHTML += `
+                <tr>
+                    <td class="border px-4 py-2">${driver.driver_name}</td>
+                    <td class="border px-4 py-2">${driver.route}</td>
+                    <td class="border px-4 py-2">${driver.fuel_usage}</td>
+                    <td class="border px-4 py-2">${driver.distance_traveled}</td>
+                    <td class="border px-4 py-2">${driver.efficiency.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+    }
+
+    async function fetchCleanliness() {
+        const response = await fetch('/api/queries/area_cleanliness');
+        const areas = await response.json();
+        const tbody = document.getElementById('cleanliness-table');
+        tbody.innerHTML = '';
+        areas.forEach(area => {
+            tbody.innerHTML += `
+                <tr>
+                    <td class="border px-4 py-2">${area.area}</td>
+                    <td class="border px-4 py-2">${area.avg_recycling_rate.toFixed(1)}</td>
+                    <td class="border px-4 py-2">${area.avg_emission.toFixed(1)}</td>
+                    <td class="border px-4 py-2">${area.complaint_count}</td>
+                    <td class="border px-4 py-2">${area.cleanliness_score.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+    }
+
+    let fillLevelChart = null;
+
+    async function updateFillLevelChart() {
+        const sensorResponse = await fetch('/api/bin_sensors/1');
+        const sensors = await sensorResponse.json();
+        const ctx = document.getElementById('fillLevelChart').getContext('2d');
+        if (fillLevelChart) {
+            fillLevelChart.destroy();
+        }
+        fillLevelChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sensors.map(s => s.recorded_at),
+                datasets: [{
+                    label: 'Fill Level (%)',
+                    data: sensors.map(s => s.fill_level),
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                    fill: true
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, max: 100, title: { display: true, text: 'Fill Level (%)' } },
+                    x: { title: { display: true, text: 'Time' } }
+                }
+            }
+        });
+    }
+
+    document.getElementById('add-bin-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const bin = {
+            location: document.getElementById('location').value,
+            area: document.getElementById('area').value,
+            type: document.getElementById('type').value,
+            capacity: parseInt(document.getElementById('capacity').value),
+            fill_level: parseInt(document.getElementById('fill_level').value),
+            temperature: parseFloat(document.getElementById('temperature').value),
+            last_emptied: document.getElementById('last_emptied').value
+        };
+        await fetch('/api/bins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bin)
+        });
+        fetchCriticalBins();
+        e.target.reset();
+    });
+
+    // Refresh data every 60 seconds
+    setInterval(() => {
+        fetchCriticalBins();
+        fetchComplaints();
+        fetchDrivers();
+        fetchCleanliness();
+        updateFillLevelChart();
+    }, 60000);
+
+    // Initial fetch
+    fetchCriticalBins();
+    fetchComplaints();
+    fetchDrivers();
+    fetchCleanliness();
+    updateFillLevelChart();
+</script>
+</body>
+</html>
